@@ -50,6 +50,10 @@ android_logger = "0.13"
 
 [profile.release]
 opt-level = 3
-strip = true
 lto = "fat"
+codegen-units = 1
 panic = "abort"
+strip = true
+overflow-checks = false
+debug = false
+incremental = false
