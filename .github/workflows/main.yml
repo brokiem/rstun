@@ -2,8 +2,8 @@ name: Rust
 
 on:
   push:
-    tags:
-      - 'release/*'
+    branches:
+      - patch-1
 
 jobs:
   linux-x86_64:
