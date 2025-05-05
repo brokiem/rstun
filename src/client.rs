@@ -723,7 +723,7 @@ impl rustls::client::danger::ServerCertVerifier for InsecureCertVerifier {
         _ocsp_response: &[u8],
         _now: rustls::pki_types::UnixTime,
     ) -> std::prelude::v1::Result<ServerCertVerified, rustls::Error> {
-        warn!("======================================= WARNING ======================================");
+        warn!("======================================= [WARNING] ======================================");
         warn!("Connecting to a server without verifying its certificate is DANGEROUS!!!");
         warn!("Provide the self-signed certificate for verification or connect with a domain name");
         warn!("======================= Be cautious, this is for TEST only!!! ========================");
