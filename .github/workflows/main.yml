@@ -21,11 +21,11 @@ jobs:
                                                   && mv target/release/rstund ./rstun-linux-x86_64/
                                                   && tar zcf rstun-linux-x86_64.tar.gz ./rstun-linux-x86_64/*
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rstun-linux-x86_64
           path: rstun-linux-x86_64.tar.gz
-          retention-days: 5
+          retention-days: 30
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -51,11 +51,11 @@ jobs:
                                                          && mv target/x86_64-unknown-linux-musl/release/rstund ./rstun-linux-musl-x86_64/
                                                          && tar zcf rstun-linux-musl-x86_64.tar.gz ./rstun-linux-musl-x86_64/*
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rstun-linux-musl-x86_64
           path: rstun-linux-musl-x86_64.tar.gz
-          retention-days: 5
+          retention-days: 30
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -83,11 +83,11 @@ jobs:
                                                   && mv target/release/rstund.exe ./rstun-windows-x86_64/
                                                   && 7z a rstun-windows-x86_64.zip ./rstun-windows-x86_64/*
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rstun-windows-x86_64
           path: rstun-windows-x86_64.zip
-          retention-days: 5
+          retention-days: 30
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -113,11 +113,11 @@ jobs:
                                                    && mv target/x86_64-apple-darwin/release/rstund ./rstun-darwin-x86_64/
                                                    && zip rstun-darwin-x86_64.zip ./rstun-darwin-x86_64/*
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rstun-darwin-x86_64
           path: rstun-darwin-x86_64.zip
-          retention-days: 5
+          retention-days: 30
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -143,11 +143,11 @@ jobs:
                                                     && mv target/aarch64-apple-darwin/release/rstund ./rstun-darwin-aarch64/
                                                     && zip rstun-darwin-aarch64.zip ./rstun-darwin-aarch64/*
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rstun-darwin-aarch64
           path: rstun-darwin-aarch64.zip
-          retention-days: 5
+          retention-days: 30
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -174,11 +174,11 @@ jobs:
                                                              && mv target/armv7-unknown-linux-gnueabihf/release/rstund ./rstun-linux-armv7/
                                                              && tar zcf rstun-linux-armv7.tar.gz ./rstun-linux-armv7/*
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rstun-linux-armv7
           path: rstun-linux-armv7.tar.gz
-          retention-days: 5
+          retention-days: 30
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -205,11 +205,11 @@ jobs:
                                                          && mv target/aarch64-unknown-linux-gnu/release/rstund ./rstun-linux-aarch64/
                                                          && tar zcf rstun-linux-aarch64.tar.gz ./rstun-linux-aarch64/*
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rstun-linux-aarch64
           path: rstun-linux-aarch64.tar.gz
-          retention-days: 5
+          retention-days: 30
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -237,11 +237,11 @@ jobs:
       - run: mv target/aarch64-unknown-linux-musl/release/rstund ./rstun-linux-musl-aarch64/
       - run: tar zcf rstun-linux-musl-aarch64.tar.gz ./rstun-linux-musl-aarch64/*
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: rstun-linux-musl-aarch64
           path: rstun-linux-musl-aarch64.tar.gz
-          retention-days: 5
+          retention-days: 30
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
