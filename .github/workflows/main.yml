@@ -20,6 +20,12 @@ jobs:
                                                   && mv target/release/rstunc ./rstun-linux-x86_64/
                                                   && mv target/release/rstund ./rstun-linux-x86_64/
                                                   && tar zcf rstun-linux-x86_64.tar.gz ./rstun-linux-x86_64/*
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: rstun-linux-x86_64
+          path: rstun-linux-x86_64.tar.gz
+          retention-days: 5
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -44,6 +50,12 @@ jobs:
                                                          && mv target/x86_64-unknown-linux-musl/release/rstunc ./rstun-linux-musl-x86_64/
                                                          && mv target/x86_64-unknown-linux-musl/release/rstund ./rstun-linux-musl-x86_64/
                                                          && tar zcf rstun-linux-musl-x86_64.tar.gz ./rstun-linux-musl-x86_64/*
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: rstun-linux-musl-x86_64
+          path: rstun-linux-musl-x86_64.tar.gz
+          retention-days: 5
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -70,6 +82,12 @@ jobs:
                                                   && mv target/release/rstunc.exe ./rstun-windows-x86_64/
                                                   && mv target/release/rstund.exe ./rstun-windows-x86_64/
                                                   && 7z a rstun-windows-x86_64.zip ./rstun-windows-x86_64/*
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: rstun-windows-x86_64
+          path: rstun-windows-x86_64.zip
+          retention-days: 5
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -94,6 +112,12 @@ jobs:
                                                    && mv target/x86_64-apple-darwin/release/rstunc ./rstun-darwin-x86_64/
                                                    && mv target/x86_64-apple-darwin/release/rstund ./rstun-darwin-x86_64/
                                                    && zip rstun-darwin-x86_64.zip ./rstun-darwin-x86_64/*
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: rstun-darwin-x86_64
+          path: rstun-darwin-x86_64.zip
+          retention-days: 5
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -102,7 +126,7 @@ jobs:
             rstun-darwin-x86_64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-            
+
   darwin-aarch64:
     name: Darwin Aarch64
     runs-on: macos-latest
@@ -118,6 +142,12 @@ jobs:
                                                     && mv target/aarch64-apple-darwin/release/rstunc ./rstun-darwin-aarch64/
                                                     && mv target/aarch64-apple-darwin/release/rstund ./rstun-darwin-aarch64/
                                                     && zip rstun-darwin-aarch64.zip ./rstun-darwin-aarch64/*
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: rstun-darwin-aarch64
+          path: rstun-darwin-aarch64.zip
+          retention-days: 5
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -143,6 +173,12 @@ jobs:
                                                              && mv target/armv7-unknown-linux-gnueabihf/release/rstunc ./rstun-linux-armv7/
                                                              && mv target/armv7-unknown-linux-gnueabihf/release/rstund ./rstun-linux-armv7/
                                                              && tar zcf rstun-linux-armv7.tar.gz ./rstun-linux-armv7/*
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: rstun-linux-armv7
+          path: rstun-linux-armv7.tar.gz
+          retention-days: 5
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -168,6 +204,12 @@ jobs:
                                                          && mv target/aarch64-unknown-linux-gnu/release/rstunc ./rstun-linux-aarch64/
                                                          && mv target/aarch64-unknown-linux-gnu/release/rstund ./rstun-linux-aarch64/
                                                          && tar zcf rstun-linux-aarch64.tar.gz ./rstun-linux-aarch64/*
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: rstun-linux-aarch64
+          path: rstun-linux-aarch64.tar.gz
+          retention-days: 5
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -176,7 +218,7 @@ jobs:
             rstun-linux-aarch64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
   linux-musl-aarch64:
     name: Linux musl Aarch64
     runs-on: ubuntu-latest
@@ -194,6 +236,12 @@ jobs:
       - run: mv target/aarch64-unknown-linux-musl/release/rstunc ./rstun-linux-musl-aarch64/
       - run: mv target/aarch64-unknown-linux-musl/release/rstund ./rstun-linux-musl-aarch64/
       - run: tar zcf rstun-linux-musl-aarch64.tar.gz ./rstun-linux-musl-aarch64/*
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: rstun-linux-musl-aarch64
+          path: rstun-linux-musl-aarch64.tar.gz
+          retention-days: 5
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -202,5 +250,3 @@ jobs:
             rstun-linux-musl-aarch64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
