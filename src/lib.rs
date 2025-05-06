@@ -40,8 +40,8 @@ lazy_static! {
 type PooledBuffer = Block<'static, Vec<u8>>;
 
 pub const SUPPORTED_CIPHER_SUITE_STRS: &[&str] = &[
-    // "chacha20-poly1305",
-    // "aes-256-gcm",
+    "chacha20-poly1305",
+    "aes-256-gcm",
     "aes-128-gcm",
     // the following ciphers don't work at the moement, will look into it later
     // "ecdhe-ecdsa-aes256-gcm",
@@ -53,8 +53,8 @@ pub const SUPPORTED_CIPHER_SUITE_STRS: &[&str] = &[
 ];
 
 pub static SUPPORTED_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
-    // cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
-    // cipher_suite::TLS13_AES_256_GCM_SHA384,
+    cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
+    cipher_suite::TLS13_AES_256_GCM_SHA384,
     cipher_suite::TLS13_AES_128_GCM_SHA256,
 ];
 
@@ -65,11 +65,11 @@ impl std::str::FromStr for SelectedCipherSuite {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            // "chacha20-poly1305" => Ok(SelectedCipherSuite(
-            //     cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
-            // )),
-            // "aes-256-gcm" => Ok(SelectedCipherSuite(cipher_suite::TLS13_AES_256_GCM_SHA384)),
-            // "aes-128-gcm" => Ok(SelectedCipherSuite(cipher_suite::TLS13_AES_128_GCM_SHA256)),
+            "chacha20-poly1305" => Ok(SelectedCipherSuite(
+                cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
+            )),
+            "aes-256-gcm" => Ok(SelectedCipherSuite(cipher_suite::TLS13_AES_256_GCM_SHA384)),
+            "aes-128-gcm" => Ok(SelectedCipherSuite(cipher_suite::TLS13_AES_128_GCM_SHA256)),
             // "ecdhe-ecdsa-aes256-gcm" => Ok(SelectedCipherSuite(
             //     rustls::cipher_suite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
             // )),
@@ -89,8 +89,7 @@ impl std::str::FromStr for SelectedCipherSuite {
             //     rustls::cipher_suite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
             // )),
             _ => Ok(SelectedCipherSuite(
-                // Use AES-GCM for higher performance on modern hardware
-                cipher_suite::TLS13_AES_128_GCM_SHA256,
+                cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
             )),
         }
     }
@@ -230,7 +229,7 @@ impl ClientConfig {
 
         let mut config = ClientConfig::default();
         config.cert_path = cert.to_string();
-        config.cipher = "aes128-gcm".to_string();
+        config.cipher = cipher.to_string();
         config.server_addr = if !server_addr.contains(':') {
             format!("127.0.0.1:{server_addr}")
         } else {
@@ -243,9 +242,9 @@ impl ClientConfig {
             num_cpus::get()
         };
         config.wait_before_retry_ms = wait_before_retry_ms;
-        config.quic_timeout_ms = 300000; // 5 minutes
-        config.tcp_timeout_ms = 300000; // 5 minutes
-        config.udp_timeout_ms = 300000; // 5 minutes
+        config.quic_timeout_ms = quic_timeout_ms;
+        config.tcp_timeout_ms = tcp_timeout_ms;
+        config.udp_timeout_ms = udp_timeout_ms;
         config.tcp_upstream = parse_as_upstream(mode, &tcp_sock_mapping)?;
         config.udp_upstream = parse_as_upstream(mode, &udp_sock_mapping)?;
         config.dot_servers = dot.split(',').map(|s| s.to_string()).collect();
@@ -466,11 +465,12 @@ pub mod android {
             return;
         }
 
-        // Access the client directly without spawning another thread
-        let client = (&mut *(client_ptr as *mut Arc<Mutex<Client>>))
-            .lock()
-            .unwrap();
-        client.start_tunneling();
+        thread::spawn(move || {
+            let mut client = (&mut *(client_ptr as *mut Arc<Mutex<Client>>))
+                .lock()
+                .unwrap();
+            client.start_tunneling();
+        });
     }
 
     #[no_mangle]

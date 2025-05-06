@@ -118,21 +118,24 @@ impl Server {
         };
 
         let tls_server_cfg = rustls::ServerConfig::builder_with_provider(provider.into())
-            .with_protocol_versions(&[&rustls::version::TLS13])?
+            .with_protocol_versions(&[&rustls::version::TLS13])
+            .unwrap()
             .with_no_client_auth()
-            .with_single_cert(certs, key)?;
+            .with_single_cert(certs, key)
+            .unwrap();
 
         let mut transport_cfg = TransportConfig::default();
-        transport_cfg.stream_receive_window(VarInt::from_u32(16 * 1024 * 1024));
-        transport_cfg.receive_window(VarInt::from_u32(32 * 1024 * 1024));
-        transport_cfg.send_window(32 * 1024 * 1024);
-        transport_cfg.max_concurrent_bidi_streams(VarInt::from_u32(10000));
-        transport_cfg.max_concurrent_uni_streams(VarInt::from_u32(10000));
+        transport_cfg.stream_receive_window(quinn::VarInt::from_u32(1024 * 1024));
+        transport_cfg.receive_window(quinn::VarInt::from_u32(1024 * 1024 * 2));
+        transport_cfg.send_window(1024 * 1024 * 2);
         transport_cfg.congestion_controller_factory(Arc::new(congestion::BbrConfig::default()));
-        transport_cfg.max_idle_timeout(None);
-
-        // Disable keep-alives to reduce overhead
-        transport_cfg.keep_alive_interval(None);
+        if config.quic_timeout_ms > 0 {
+            let timeout = IdleTimeout::from(VarInt::from_u32(config.quic_timeout_ms as u32));
+            transport_cfg.max_idle_timeout(Some(timeout));
+            transport_cfg
+                .keep_alive_interval(Some(Duration::from_millis(config.quic_timeout_ms * 2 / 3)));
+        }
+        transport_cfg.max_concurrent_bidi_streams(VarInt::from_u32(1024));
 
         let quic_server_cfg = Arc::new(QuicServerConfig::try_from(tls_server_cfg)?);
         let mut quinn_server_cfg = quinn::ServerConfig::with_crypto(quic_server_cfg);
@@ -412,7 +415,11 @@ impl Server {
         key_path: &str,
     ) -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
         let (certs, key) = if cert_path.is_empty() {
-            warn!("No valid certificate path is provided, a self-signed certificate for the domain \"localhost\" is generated.");
+            info!("will use auto-generated self-signed certificate.");
+            warn!("============================= WARNING ==============================");
+            warn!("No valid certificate path is provided, a self-signed certificate");
+            warn!("for the domain \"localhost\" is generated.");
+            warn!("============== Be cautious, this is for TEST only!!! ===============");
             let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
             let key = PrivatePkcs8KeyDer::from(cert.key_pair.serialize_der());
             let cert = CertificateDer::from(cert.cert);

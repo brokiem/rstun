@@ -273,17 +273,12 @@ impl Client {
 
     async fn connect(&self) -> Result<()> {
         let mut transport_cfg = TransportConfig::default();
-        transport_cfg.stream_receive_window(VarInt::from_u32(16 * 1024 * 1024)); // 16MB per stream 
-        transport_cfg.receive_window(VarInt::from_u32(32 * 1024 * 1024));        // 32MB connection-level
-        transport_cfg.send_window(32 * 1024 * 1024);
+        transport_cfg.stream_receive_window(quinn::VarInt::from_u32(1024 * 1024));
+        transport_cfg.receive_window(quinn::VarInt::from_u32(1024 * 1024 * 2));
+        transport_cfg.send_window(1024 * 1024 * 2);
         transport_cfg.congestion_controller_factory(Arc::new(congestion::BbrConfig::default()));
+        transport_cfg.max_concurrent_bidi_streams(VarInt::from_u32(1024));
 
-        // Increase streams for parallelism
-        transport_cfg.max_concurrent_bidi_streams(VarInt::from_u32(10000));
-        transport_cfg.max_concurrent_uni_streams(VarInt::from_u32(10000));
-        transport_cfg.datagram_receive_buffer_size(None);
-
-        // Minimal timeout
         if self.config.quic_timeout_ms > 0 {
             let timeout = IdleTimeout::from(VarInt::from_u32(self.config.quic_timeout_ms as u32));
             transport_cfg.max_idle_timeout(Some(timeout));
@@ -489,25 +484,17 @@ impl Client {
     async fn report_traffic_data_in_background(&self, conn: Connection) {
         let state = self.inner_state.clone();
         tokio::spawn(async move {
-            // Increase interval to reduce overhead
-            let mut interval = tokio::time::interval(Duration::from_secs(30));
+            let mut interval =
+                tokio::time::interval(Duration::from_secs(POST_TRAFFIC_DATA_INTERVAL_SECS));
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
             loop {
                 interval.tick().await;
 
-                // Avoid lock contention by short-circuiting when not needed
-                {
-                    let state = state.lock().unwrap();
-                    if !state.on_info_report_enabled {
-                        continue;
-                    }
-                }
-
-                // Only then access stats with lock
+                let state = state.lock().unwrap();
                 let stats = conn.stats();
                 let data = {
-                    let state = state.lock().unwrap();
+                    // have to be very careful to avoid deadlock, don't hold the lock for too long
                     let total_traffic_data = &state.total_traffic_data;
                     TunnelTraffic {
                         rx_bytes: stats.udp_rx.bytes + total_traffic_data.rx_bytes,
@@ -516,16 +503,10 @@ impl Client {
                         tx_dgrams: stats.udp_tx.datagrams + total_traffic_data.tx_dgrams,
                     }
                 };
-
-                // Post traffic info only if needed
-                if let Ok(state) = state.lock() {
-                    if state.on_info_report_enabled {
-                        state.post_tunnel_info(TunnelInfo::new(
-                            TunnelInfoType::TunnelTraffic,
-                            Box::new(data),
-                        ));
-                    }
-                }
+                state.post_tunnel_info(TunnelInfo::new(
+                    TunnelInfoType::TunnelTraffic,
+                    Box::new(data),
+                ));
             }
         });
     }
@@ -556,27 +537,69 @@ impl Client {
     }
 
     fn parse_client_config_and_domain(&self) -> Result<(rustls::ClientConfig, String)> {
-        // Always use the most performant cipher
+        self.post_tunnel_log(format!("will use cipher: {}", self.config.cipher).as_str());
         let cipher = *SelectedCipherSuite::from_str(&self.config.cipher).map_err(|_| {
             rustls::Error::General(format!("invalid cipher: {}", self.config.cipher))
         })?;
 
-        // Skip all domain validation
-        let domain = match self.config.server_addr.rfind(':') {
+        if self.config.cert_path.is_empty() {
+            if !Self::is_ip_addr(&self.config.server_addr) {
+                let domain = match self.config.server_addr.rfind(':') {
+                    Some(colon_index) => self.config.server_addr[0..colon_index].to_string(),
+                    None => self.config.server_addr.to_string(),
+                };
+
+                let client_config = self
+                    .create_client_config_builder(&cipher)?
+                    .dangerous()
+                    .with_custom_certificate_verifier(Arc::new(Verifier::new()))
+                    .with_no_client_auth();
+
+                return Ok((client_config, domain));
+            }
+
+            let client_config = self
+                .create_client_config_builder(&cipher)?
+                .dangerous()
+                .with_custom_certificate_verifier(Arc::new(InsecureCertVerifier::new(
+                    self.get_crypto_provider(&cipher),
+                )))
+                .with_no_client_auth();
+
+            warn!("No certificate is provided for verification, domain \"localhost\" is assumed");
+            return Ok((client_config, "localhost".to_string()));
+        }
+
+        // when client config provides a certificate
+        let certs = pem_util::load_certificates_from_pem(self.config.cert_path.as_str())
+            .context("failed to read from cert file")?;
+        if certs.is_empty() {
+            log_and_bail!(
+                "No certificates found in provided file: {}",
+                self.config.cert_path
+            );
+        }
+        let mut roots = RootCertStore::empty();
+        // save all certificates in the certificate chain to the trust list
+        for cert in &certs {
+            roots.add(cert.clone()).context(format!(
+                "failed to add certificate from file: {}",
+                self.config.cert_path
+            ))?;
+        }
+
+        // for self-signed certificates, generating IP-based TLS certificates is not difficult
+        let domain_or_ip = match self.config.server_addr.rfind(':') {
             Some(colon_index) => self.config.server_addr[0..colon_index].to_string(),
             None => self.config.server_addr.to_string(),
         };
 
-        // Reuse insecure verifier without cert path checks
-        let client_config = self
-            .create_client_config_builder(&cipher)?
-            .dangerous()
-            .with_custom_certificate_verifier(Arc::new(InsecureCertVerifier::new(
-                self.get_crypto_provider(&cipher),
-            )))
-            .with_no_client_auth();
-
-        Ok((client_config, domain))
+        Ok((
+            self.create_client_config_builder(&cipher)?
+                .with_root_certificates(roots)
+                .with_no_client_auth(),
+            domain_or_ip,
+        ))
     }
 
     pub fn get_state(&self) -> ClientState {
@@ -589,26 +612,37 @@ impl Client {
 
     async fn parse_server_addr(&self) -> Result<SocketAddr> {
         let addr = self.config.server_addr.as_str();
+        let sock_addr: Result<SocketAddr> = addr.parse().context("error will be ignored");
 
-        // Try direct socket address first
-        if let Ok(sock_addr) = addr.parse() {
-            return Ok(sock_addr);
+        if sock_addr.is_ok() {
+            return sock_addr;
         }
 
-        // Parse domain and port
-        let (domain, port) = match addr.rfind(':') {
-            Some(pos) => (&addr[..pos], addr[(pos + 1)..].parse().unwrap_or(DEFAULT_SERVER_PORT)),
-            None => (addr, DEFAULT_SERVER_PORT),
-        };
+        let mut domain = addr;
+        let mut port = DEFAULT_SERVER_PORT;
+        let pos = addr.rfind(':');
+        if let Some(pos) = pos {
+            port = addr[(pos + 1)..]
+                .parse()
+                .with_context(|| format!("invalid address: {}", addr))?;
+            domain = &addr[..pos];
+        }
 
-        // Use system DNS resolver directly without retries
-        if let Ok(ips) = tokio::net::lookup_host(format!("{}:{}", domain, port)).await {
-            if let Some(ip) = ips.into_iter().next() {
-                return Ok(ip);
+        for dot in &self.config.dot_servers {
+            if let Ok(ip) = Self::lookup_server_ip(domain, dot, vec![]).await {
+                return Ok(SocketAddr::new(ip, port));
             }
         }
 
-        bail!("failed to resolve domain: {domain}")
+        if let Ok(ip) = Self::lookup_server_ip(domain, "", self.config.dns_servers.clone()).await {
+            return Ok(SocketAddr::new(ip, port));
+        }
+
+        if let Ok(ip) = Self::lookup_server_ip(domain, "", vec![]).await {
+            return Ok(SocketAddr::new(ip, port));
+        }
+
+        bail!("failed to resolve domain: {domain}");
     }
 
     async fn lookup_server_ip(
