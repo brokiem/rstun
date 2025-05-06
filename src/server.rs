@@ -411,8 +411,6 @@ impl Server {
         cert_path: &str,
         key_path: &str,
     ) -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
-        info!("reading certs and key from {cert_path} and {key_path}");
-        
         let (certs, key) = if cert_path.is_empty() {
             warn!("No valid certificate path is provided, a self-signed certificate for the domain \"localhost\" is generated.");
             let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;

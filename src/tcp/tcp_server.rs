@@ -34,7 +34,7 @@ impl TcpServer {
         let tcp_listener = TcpListener::bind(addr).await?;
         let addr = tcp_listener.local_addr().unwrap();
 
-        let (tcp_sender, tcp_receiver) = channel(2);
+        let (tcp_sender, tcp_receiver) = channel(4);
         let state = Arc::new(Mutex::new(State {
             addr,
             tcp_sender: tcp_sender.clone(),
