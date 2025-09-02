@@ -56,9 +56,9 @@ lazy_static! {
 /// These map to TLS 1.3 cipher suites in rustls. Strings are accepted by
 /// [`SelectedCipherSuite`]'s FromStr implementation and by the client binary.
 pub const SUPPORTED_CIPHER_SUITE_STRS: &[&str] = &[
+    "aes-128-gcm",
     "chacha20-poly1305",
     "aes-256-gcm",
-    "aes-128-gcm",
     // the following ciphers don't work at the moement, will look into it later
     // "ecdhe-ecdsa-aes256-gcm",
     // "ecdhe-ecdsa-aes128-gcm",
@@ -70,9 +70,9 @@ pub const SUPPORTED_CIPHER_SUITE_STRS: &[&str] = &[
 
 /// Supported TLS cipher suites used to build rustls/quinn configs.
 pub static SUPPORTED_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
+    cipher_suite::TLS13_AES_128_GCM_SHA256,
     cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
     cipher_suite::TLS13_AES_256_GCM_SHA384,
-    cipher_suite::TLS13_AES_128_GCM_SHA256,
 ];
 
 /// Wrapper type to parse a user-provided cipher suite string into a
