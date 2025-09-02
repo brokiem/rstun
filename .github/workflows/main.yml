@@ -7,20 +7,31 @@ jobs:
     name: Linux x86_64
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
+      - name: Get commit ID
+        id: vars
+        run: echo "commit_id=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           target: x86_64-unknown-linux-gnu
           override: true
-      - run: cargo build --all-features --release && mkdir -p rstun-linux-x86_64
-                                                  && mv target/release/rstunc ./rstun-linux-x86_64/
-                                                  && mv target/release/rstund ./rstun-linux-x86_64/
-                                                  && tar zcf rstun-linux-x86_64.tar.gz ./rstun-linux-x86_64/*
-      - name: Release
+
+      - name: Build Linux binaries
+        run: |
+          cargo build --all-features --release
+          mkdir -p rstun-linux-x86_64
+          mv target/release/rstunc ./rstun-linux-x86_64/
+          mv target/release/rstund ./rstun-linux-x86_64/
+          tar zcf rstun-linux-x86_64.tar.gz ./rstun-linux-x86_64/*
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'latest'
         with:
+          tag_name: release-${{ env.commit_id }}
+          name: Release ${{ env.commit_id }}
           files: |
             rstun-linux-x86_64.tar.gz
         env:
@@ -33,22 +44,32 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+
+      - name: Get commit ID
+        id: vars
+        run: echo "commit_id=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           target: x86_64-pc-windows-msvc
           override: true
-      - run: cargo build --all-features --release && mkdir -p rstun-windows-x86_64
-                                                  && mv target/release/rstunc.exe ./rstun-windows-x86_64/
-                                                  && mv target/release/rstund.exe ./rstun-windows-x86_64/
-                                                  && 7z a rstun-windows-x86_64.zip ./rstun-windows-x86_64/*
-      - name: Release
+
+      - name: Build Windows binaries
+        run: |
+          cargo build --all-features --release
+          mkdir -p rstun-windows-x86_64
+          mv target/release/rstunc.exe ./rstun-windows-x86_64/
+          mv target/release/rstund.exe ./rstun-windows-x86_64/
+          7z a rstun-windows-x86_64.zip ./rstun-windows-x86_64/*
+
+      - name: Create Release
         uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'latest'
         with:
+          tag_name: release-${{ env.commit_id }}
+          name: Release ${{ env.commit_id }}
           files: |
             rstun-windows-x86_64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
