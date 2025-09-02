@@ -19,7 +19,7 @@ jobs:
                                                   && tar zcf rstun-linux-x86_64.tar.gz ./rstun-linux-x86_64/*
       - name: Release
         uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'release'
+        if: github.ref_type == 'latest'
         with:
           files: |
             rstun-linux-x86_64.tar.gz
@@ -45,7 +45,7 @@ jobs:
                                                   && 7z a rstun-windows-x86_64.zip ./rstun-windows-x86_64/*
       - name: Release
         uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'release'
+        if: github.ref_type == 'latest'
         with:
           files: |
             rstun-windows-x86_64.zip
