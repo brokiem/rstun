@@ -1,3 +1,9 @@
+//! QUIC-based tunnel server implementation.
+//!
+//! This module provides the [`Server`] struct, which represents a QUIC-based
+//! tunnel server. The server can bind to a specific address, authenticate
+//! clients, and serve TCP/UDP tunnels as negotiated by the client.
+
 use crate::tcp::tcp_tunnel::TcpTunnel;
 use crate::tcp::{StreamMessage, StreamSender};
 use crate::tunnel_message::TunnelMessage;
@@ -53,6 +59,8 @@ impl State {
 }
 
 #[derive(Debug)]
+/// QUIC-based tunnel server. Binds to an address, authenticates clients, and
+/// serves TCP/UDP tunnels as negotiated.
 pub struct Server {
     inner_state: Arc<Mutex<State>>,
 }
@@ -64,12 +72,14 @@ macro_rules! inner_state {
 }
 
 impl Server {
+    /// Create a new server with the given runtime configuration.
     pub fn new(config: ServerConfig) -> Self {
         Server {
             inner_state: Arc::new(Mutex::new(State::new(config))),
         }
     }
 
+    /// Bind the server endpoint and return the actual bound address.
     pub fn bind(&mut self) -> Result<SocketAddr> {
         let mut state = self.inner_state.lock().unwrap();
         let config = state.config.clone();
@@ -146,6 +156,7 @@ impl Server {
         Ok(quinn_server_cfg)
     }
 
+    /// Start accepting client connections and serving tunnels.
     pub async fn serve(&self) -> Result<()> {
         let state = self.inner_state.clone();
         tokio::spawn(async move {

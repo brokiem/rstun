@@ -14,6 +14,7 @@ use tokio::sync::mpsc::channel;
 pub use crate::udp::{UdpMessage, UdpPacket, UdpReceiver, UdpSender};
 
 #[derive(Debug, Clone)]
+/// Lightweight UDP helper that binds a local socket and bridges packets via channels.
 pub struct UdpServer(Arc<Mutex<State>>);
 
 #[derive(Debug)]
@@ -25,6 +26,7 @@ struct State {
 }
 
 impl UdpServer {
+    /// Bind to the given address and start the UDP bridging task in background.
     pub async fn bind_and_start(addr: SocketAddr) -> Result<Self> {
         let udp_socket = UdpSocket::bind(addr).await?;
         let addr = udp_socket.local_addr().unwrap();
@@ -110,32 +112,38 @@ impl UdpServer {
         Ok(Self(state_clone))
     }
 
+    /// Get the bound local address.
     pub fn addr(&self) -> SocketAddr {
         self.0.lock().unwrap().addr
     }
 
+    /// Ask the UDP server to shut down gracefully.
     pub async fn shutdown(&mut self) -> Result<()> {
         let udp_sender = self.0.lock().unwrap().in_udp_sender.clone();
         udp_sender.send(UdpMessage::Quit).await?;
         Ok(())
     }
 
+    /// Mark the server active/inactive. When inactive, inbound packets are dropped.
     pub fn set_active(&mut self, active: bool) {
         self.0.lock().unwrap().active = active
     }
 
+    /// Take the receiver side of the channel for reading inbound UDP packets (activates server).
     pub fn take_receiver(&mut self) -> UdpReceiver {
         let mut state = self.0.lock().unwrap();
         state.active = true;
         state.udp_receiver.take().unwrap()
     }
 
+    /// Put back a previously taken receiver (deactivates server).
     pub fn put_receiver(&mut self, udp_receiver: UdpReceiver) {
         let mut state = self.0.lock().unwrap();
         state.active = false;
         state.udp_receiver = Some(udp_receiver);
     }
 
+    /// Clone the sender used for delivering packets to the local UDP socket.
     pub fn clone_sender(&self) -> UdpSender {
         self.0.lock().unwrap().in_udp_sender.clone()
     }

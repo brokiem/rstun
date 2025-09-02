@@ -1,3 +1,8 @@
+//! Stream utilities for bridging AsyncRead/Write streams with QUIC streams.
+//!
+//! Helper methods to transfer data between a local stream and a QUIC stream,
+//! and to (de)serialize socket addresses.
+
 use crate::tcp::AsyncStream;
 use crate::BUFFER_POOL;
 use anyhow::Result;
@@ -11,6 +16,7 @@ use tokio::sync::oneshot;
 use tokio::time::error::Elapsed;
 
 #[derive(Debug, PartialEq, Eq)]
+/// Errors that can occur during bidirectional stream transfer.
 pub enum TransferError {
     InternalError,
     InvalidIPAddress,
@@ -32,6 +38,8 @@ impl Display for TransferError {
 pub struct StreamUtil {}
 
 impl StreamUtil {
+    /// Start bidirectional flowing between a local Async stream and a pair of
+    /// QUIC send/recv streams. Runs two tasks and logs flow stats.
     pub fn start_flowing<S: AsyncStream>(
         tag: &'static str,
         stream: S,
@@ -189,6 +197,7 @@ impl StreamUtil {
         }
     }
 
+    /// Write an IPv4/IPv6 socket address (or None) into a QUIC send stream.
     pub async fn write_socket_addr(
         quic_send: &mut SendStream,
         addr: &Option<SocketAddr>,
@@ -218,6 +227,7 @@ impl StreamUtil {
         Ok(())
     }
 
+    /// Read an IPv4/IPv6 socket address from a QUIC recv stream with timeout.
     pub async fn read_socket_addr(
         quic_recv: &mut RecvStream,
         stream_timeout_ms: u64,

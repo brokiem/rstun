@@ -1,3 +1,34 @@
+//! TCP tunneling helpers built on top of QUIC bidirectional streams.
+//!
+//! This module provides a `TcpTunnel` struct that offers methods to serve and accept TCP
+//! connections over QUIC. It bridges accepted streams to QUIC bidirectional streams, allowing
+//! for seamless TCP tunneling.
+//!
+//! # Examples
+//!
+//! ```rust,ignore
+//! use quinn::Connection;
+//! use std::net::SocketAddr;
+//!
+//! async fn example(conn: &Connection, addr: SocketAddr) {
+//!     // Serving TCP connections over QUIC.
+//!     // TcpTunnel::start_serving::<YourAsyncStreamType>(
+//!     //     true,    // tunnel_out: true for OUT mode, false for IN mode
+//!     //     conn,
+//!     //     &mut your_stream_receiver,
+//!     //     &mut None, // no pending request initially
+//!     //     5000,      // stream timeout in milliseconds
+//!     // ).await;
+//!
+//!     // Accepting QUIC streams and connecting to upstream TCP endpoint.
+//!     // TcpTunnel::start_accepting(
+//!     //     conn,
+//!     //     Some(addr), // upstream TCP address
+//!     //     5000,       // stream timeout in milliseconds
+//!     // ).await;
+//! }
+//! ```
+
 use crate::tcp::StreamMessage;
 use crate::tcp::{AsyncStream, StreamReceiver, StreamRequest};
 use crate::util::stream_util::StreamUtil;
@@ -10,6 +41,10 @@ use tokio::net::TcpStream;
 pub struct TcpTunnel;
 
 impl TcpTunnel {
+    /// Serve outbound or inbound TCP by bridging accepted streams to QUIC.
+    ///
+    /// - `tunnel_out`: true for OUT mode logs, false for IN mode.
+    /// - `pending_request`: used to retry the last request on transient errors.
     pub async fn start_serving<S: AsyncStream>(
         tunnel_out: bool,
         conn: &quinn::Connection,
@@ -53,6 +88,7 @@ impl TcpTunnel {
         // the tcp server will be reused when tunnel reconnects
     }
 
+    /// Accept peer QUIC streams and connect to the upstream TCP endpoint.
     pub async fn start_accepting(
         conn: &quinn::Connection,
         upstream_addr: Option<SocketAddr>,

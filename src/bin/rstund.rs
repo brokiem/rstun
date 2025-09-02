@@ -1,3 +1,10 @@
+//! rstund: QUIC-based tunneling server.
+//!
+//! Binds a QUIC endpoint, authenticates incoming clients, and serves
+//! TCP/UDP tunnels according to client requests. See --help for options.
+//!
+//! This binary is built as part of the `rstun` crate.
+
 use anyhow::Result;
 use clap::builder::PossibleValuesParser;
 use clap::builder::TypedValueParser as _;

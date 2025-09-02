@@ -1,3 +1,9 @@
+//! UDP tunneling helpers built on top of QUIC bidirectional streams.
+//!
+//! This module provides the `UdpTunnel` struct, which facilitates the tunneling
+//! of UDP packets over a QUIC connection. It allows for bridging between local
+//! UDP servers and remote endpoints using QUIC streams.
+
 use crate::tunnel_message::{TunnelMessage, UdpPeerAddr};
 use crate::udp::{UdpMessage, UdpPacket};
 use crate::BUFFER_POOL;
@@ -21,6 +27,9 @@ type TSafe<T> = Arc<tokio::sync::Mutex<T>>;
 pub struct UdpTunnel;
 
 impl UdpTunnel {
+    /// Bridge packets between a local UDP server and QUIC streams (OUT mode).
+    /// Consumes packets from `udp_receiver` and sends them via QUIC; also
+    /// spawns tasks to relay responses back to the local UDP server.
     pub async fn start_serving(
         conn: &quinn::Connection,
         udp_sender: &Sender<UdpMessage>,
@@ -76,6 +85,7 @@ impl UdpTunnel {
         info!("udp server quit");
     }
 
+    /// Open (or reuse) a QUIC stream for a specific local UDP socket address.
     async fn open_stream(
         conn: Connection,
         udp_sender: Sender<UdpMessage>,
@@ -139,6 +149,7 @@ impl UdpTunnel {
         Ok(quic_send)
     }
 
+    /// Accept peer QUIC streams and forward them to an upstream UDP endpoint.
     pub async fn start_accepting(
         conn: &quinn::Connection,
         upstream_addr: Option<SocketAddr>,
@@ -170,6 +181,7 @@ impl UdpTunnel {
         info!("connection for udp out is dropped");
     }
 
+    /// Process one accepted QUIC pair for UDP bridging.
     async fn process(
         quic_send: SendStream,
         mut quic_recv: RecvStream,
@@ -252,36 +264,7 @@ impl UdpTunnel {
         Ok::<(), anyhow::Error>(())
     }
 
-    async fn create_peer_socket_and_exchange_data(
-        addr: SocketAddr,
-        quic_send: Arc<Mutex<SendStream>>,
-        udp_timeout_ms: u64,
-    ) -> Result<Option<(Arc<UdpSocket>, oneshot::Sender<()>)>> {
-        let local_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
-        match UdpSocket::bind(local_addr).await {
-            Ok(udp_socket) => {
-                if let Err(e) = udp_socket.connect(addr).await {
-                    log_and_bail!("failed to connect to upstream: {addr}, err: {e}");
-                };
-
-                let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-                let udp_socket = Arc::new(udp_socket);
-
-                Self::udp_to_quic(
-                    udp_socket.clone(),
-                    quic_send.clone(),
-                    udp_timeout_ms,
-                    shutdown_rx,
-                );
-
-                Ok(Some((udp_socket, shutdown_tx)))
-            }
-            Err(e) => {
-                log_and_bail!("failed to bind to localhost, err: {e}");
-            }
-        }
-    }
-
+    /// Spawn a task to forward datagrams from a connected UDP socket to QUIC.
     fn udp_to_quic(
         udp_socket: Arc<UdpSocket>,
         quic_send: Arc<Mutex<SendStream>>,
@@ -324,5 +307,35 @@ impl UdpTunnel {
             }
             debug!("dropped udp stream →  {:?}", udp_socket.peer_addr());
         });
+    }
+
+    async fn create_peer_socket_and_exchange_data(
+        addr: SocketAddr,
+        quic_send: Arc<Mutex<SendStream>>,
+        udp_timeout_ms: u64,
+    ) -> Result<Option<(Arc<UdpSocket>, oneshot::Sender<()>)>> {
+        let local_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
+        match UdpSocket::bind(local_addr).await {
+            Ok(udp_socket) => {
+                if let Err(e) = udp_socket.connect(addr).await {
+                    log_and_bail!("failed to connect to upstream: {addr}, err: {e}");
+                };
+
+                let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+                let udp_socket = Arc::new(udp_socket);
+
+                Self::udp_to_quic(
+                    udp_socket.clone(),
+                    quic_send.clone(),
+                    udp_timeout_ms,
+                    shutdown_rx,
+                );
+
+                Ok(Some((udp_socket, shutdown_tx)))
+            }
+            Err(e) => {
+                log_and_bail!("failed to bind to localhost, err: {e}");
+            }
+        }
     }
 }

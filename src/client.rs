@@ -38,6 +38,7 @@ const POST_TRAFFIC_DATA_INTERVAL_SECS: u64 = 30;
 static INIT: Once = Once::new();
 
 #[derive(Clone, Serialize, PartialEq)]
+/// High-level client state reported during the lifecycle of a tunnel.
 pub enum ClientState {
     Idle = 0,
     Connecting,
@@ -105,6 +106,7 @@ struct LoginConfig {
 }
 
 #[derive(Clone)]
+/// Client entry point that manages QUIC connection(s) and tunnel serving.
 pub struct Client {
     config: ClientConfig,
     inner_state: Arc<Mutex<State>>,
@@ -117,6 +119,7 @@ macro_rules! inner_state {
 }
 
 impl Client {
+    /// Create a client with the given runtime configuration.
     pub fn new(config: ClientConfig) -> Self {
         INIT.call_once(|| {
             rustls::crypto::ring::default_provider()
@@ -130,6 +133,9 @@ impl Client {
         }
     }
 
+    /// Start the runtime (multi-threaded tokio) and block the current thread until Ctrl-C.
+    ///
+    /// Spawns tasks to connect and serve all tunnels in [ClientConfig::tunnels].
     pub fn start_tunneling(&mut self) {
         let (tx, rx) = std::sync::mpsc::channel();
         ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel."))
@@ -147,6 +153,7 @@ impl Client {
             });
     }
 
+    /// Spawn async tasks for network/channel-based tunnels; does not block.
     pub fn connect_and_serve_async(&mut self) {
         for (index, tunnel_config) in self.config.tunnels.iter().cloned().enumerate() {
             let mut this = self.clone();
@@ -167,6 +174,7 @@ impl Client {
         }
     }
 
+    /// Connect and serve a channel-based TCP tunnel using an external stream receiver.
     pub fn connect_and_serve_tcp_async<S: AsyncStream>(
         &mut self,
         stream_receiver: StreamReceiver<S>,
@@ -183,6 +191,7 @@ impl Client {
         });
     }
 
+    /// Connect and serve a channel-based UDP tunnel using the provided sender/receiver.
     pub fn connect_and_serve_udp_async(&mut self, ch: (UdpSender, UdpReceiver)) {
         let mut this = self.clone();
         tokio::spawn(async move {
@@ -229,6 +238,7 @@ impl Client {
         Ok(())
     }
 
+    /// Start a local TCP server for an OUT tunnel and return its handle.
     pub async fn start_tcp_server(&self, addr: SocketAddr) -> Result<TcpServer> {
         let bind_tcp_server = || async { TcpServer::bind_and_start(addr).await };
         let tcp_server = bind_tcp_server
@@ -248,6 +258,7 @@ impl Client {
         Ok(tcp_server)
     }
 
+    /// Start a local UDP server for an OUT tunnel and return its handle.
     pub async fn start_udp_server(&self, addr: SocketAddr) -> Result<UdpServer> {
         // create a local udp server for 'OUT' tunnel
         let bind_udp_server = || async { UdpServer::bind_and_start(addr).await };
@@ -267,10 +278,12 @@ impl Client {
         Ok(udp_server)
     }
 
+    /// Return a clone of the client's configuration.
     pub fn get_config(&self) -> ClientConfig {
         self.config.clone()
     }
 
+    /// Stop the client and shutdown all servers and connections (blocking variant).
     #[allow(clippy::unnecessary_to_owned)]
     pub fn stop(&self) {
         self.set_and_post_tunnel_state(ClientState::Stopping);
@@ -301,6 +314,7 @@ impl Client {
         std::thread::sleep(Duration::from_secs(3));
     }
 
+    /// Stop the client and shutdown all servers and connections (async variant).
     #[allow(clippy::unnecessary_to_owned)]
     pub async fn stop_async(&self) {
         self.set_and_post_tunnel_state(ClientState::Stopping);
@@ -990,10 +1004,12 @@ impl Client {
         inner_state!(self, tunnel_info_bridge).set_listener(callback);
     }
 
+    /// Returns true if an info listener has been installed.
     pub fn has_on_info_listener(&self) -> bool {
         inner_state!(self, tunnel_info_bridge).has_listener()
     }
 
+    /// Enable or disable periodic posting of tunnel info via the listener.
     pub fn set_enable_on_info_report(&self, enable: bool) {
         info!("set_enable_on_info_report, enable:{enable}");
         inner_state!(self, on_info_report_enabled) = enable;

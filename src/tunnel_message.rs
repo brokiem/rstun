@@ -1,3 +1,8 @@
+//! Serializable messages exchanged over QUIC control/data streams.
+//!
+//! This module defines the messages used for controlling the tunnel
+//! lifecycle and for coordinating per-packet operations between
+//! client and server.
 use crate::{Tunnel, TunnelMode};
 use anyhow::Result;
 use anyhow::{bail, Context};
@@ -11,20 +16,27 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(EnumAsInner, Serialize, Deserialize, Debug, Clone)]
+/// Control/data messages used during login and per-packet coordination.
 pub enum TunnelMessage {
+    /// Client → Server: authenticate and declare desired tunnel.
     ReqLogin(LoginInfo),
+    /// Client → Server: mark the peer address for an upcoming UDP datagram.
     ReqUdpStart(UdpPeerAddr),
+    /// Server → Client: failure with reason.
     RespFailure(String),
+    /// Server ↔ Client: success acknowledgement.
     RespSuccess,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+/// Login payload containing password and requested tunnel description.
 pub(crate) struct LoginInfo {
     pub password: String,
     pub tunnel: Tunnel,
 }
 
 impl LoginInfo {
+    /// Format a human-friendly description including the remote address.
     pub fn format_with_remote_addr(&self, remote_addr: &SocketAddr) -> String {
         match &self.tunnel {
             Tunnel::ChannelBased(upstream_type) => {
@@ -64,6 +76,7 @@ impl LoginInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+/// UDP peer address wrapper used in ReqUdpStart.
 pub struct UdpPeerAddr(pub Option<SocketAddr>);
 
 impl Display for LoginInfo {
@@ -93,6 +106,7 @@ impl Display for TunnelMessage {
 }
 
 impl TunnelMessage {
+    /// Receive and decode a TunnelMessage from the given QUIC recv stream.
     pub async fn recv(quic_recv: &mut RecvStream) -> Result<TunnelMessage> {
         let msg_len = quic_recv.read_u32().await? as usize;
         let mut msg = vec![0; msg_len];
@@ -109,6 +123,7 @@ impl TunnelMessage {
         Ok(tun_msg.0)
     }
 
+    /// Encode and send a TunnelMessage via the given QUIC send stream.
     pub async fn send(quic_send: &mut SendStream, msg: &TunnelMessage) -> Result<()> {
         let msg = bincode::serde::encode_to_vec(msg, config::standard())
             .context("serialize message failed")?;
@@ -117,6 +132,7 @@ impl TunnelMessage {
         Ok(())
     }
 
+    /// Convenience to send a failure response and flush.
     pub async fn send_failure(quic_send: &mut SendStream, msg: String) -> Result<()> {
         let msg = TunnelMessage::RespFailure(msg);
         Self::send(quic_send, &msg).await?;
@@ -125,6 +141,7 @@ impl TunnelMessage {
         Ok(())
     }
 
+    /// Receive a raw datagram payload into the provided buffer.
     pub async fn recv_raw(quic_recv: &mut RecvStream, data: &mut [u8]) -> Result<u16> {
         let msg_len = quic_recv.read_u16().await? as usize;
         if msg_len > data.len() {
@@ -137,12 +154,14 @@ impl TunnelMessage {
         Ok(msg_len as u16)
     }
 
+    /// Send a raw datagram payload.
     pub async fn send_raw(quic_send: &mut SendStream, data: &[u8]) -> Result<()> {
         quic_send.write_u16(data.len() as u16).await?;
         quic_send.write_all(data).await?;
         Ok(())
     }
 
+    /// Validate a response message, returning Ok for RespSuccess else error.
     pub fn handle_message(msg: &TunnelMessage) -> Result<()> {
         match msg {
             TunnelMessage::RespSuccess => Ok(()),

@@ -9,6 +9,7 @@ use tokio::sync::mpsc::channel;
 use tokio::sync::mpsc::error::SendTimeoutError;
 
 #[derive(Debug, Clone)]
+/// Lightweight TCP listener that forwards accepted connections to a channel.
 pub struct TcpServer {
     state: Arc<Mutex<State>>,
 }
@@ -23,6 +24,8 @@ struct State {
 }
 
 impl TcpServer {
+    /// Bind to the given address and start accepting connections in background.
+    /// Returns a handle to control the server and obtain the receiver channel.
     pub async fn bind_and_start(addr: SocketAddr) -> Result<Self> {
         let tcp_listener = TcpListener::bind(addr).await?;
         let addr = tcp_listener.local_addr().unwrap();
@@ -94,6 +97,7 @@ impl TcpServer {
         Ok(Self { state: state_clone })
     }
 
+    /// Request the server to shutdown gracefully.
     pub async fn shutdown(&mut self) -> Result<()> {
         let addr = {
             let mut state = self.state.lock().unwrap();
@@ -105,22 +109,26 @@ impl TcpServer {
         Ok(())
     }
 
+    /// Get the bound local address.
     pub fn addr(&self) -> SocketAddr {
         self.state.lock().unwrap().addr
     }
 
+    /// Take the receiver channel for accepted streams (sets server active=true).
     pub fn take_receiver(&mut self) -> StreamReceiver<TcpStream> {
         let mut state = self.state.lock().unwrap();
         state.active = true;
         state.tcp_receiver.take().unwrap()
     }
 
+    /// Put back a previously taken receiver channel (sets server active=false).
     pub fn put_receiver(&mut self, tcp_receiver: StreamReceiver<TcpStream>) {
         let mut state = self.state.lock().unwrap();
         state.active = false;
         state.tcp_receiver = Some(tcp_receiver);
     }
 
+    /// Clone a sender to receive future stream requests.
     pub fn clone_sender(&self) -> StreamSender<TcpStream> {
         self.state.lock().unwrap().tcp_sender.clone()
     }

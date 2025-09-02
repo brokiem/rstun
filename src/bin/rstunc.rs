@@ -1,3 +1,8 @@
+//! rstunc: QUIC-based tunneling client.
+//!
+//! Connects to an rstund server, authenticates, and starts TCP/UDP tunnels
+//! according to the provided mappings. See --help for details and examples.
+
 use clap::builder::PossibleValuesParser;
 use clap::builder::TypedValueParser as _;
 use clap::Parser;

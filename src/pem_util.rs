@@ -8,6 +8,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::{fs::File, io::BufReader};
 
+/// Load all X.509 certificates from a PEM file.
 pub fn load_certificates_from_pem(path: &str) -> Result<Vec<CertificateDer<'static>>> {
     let file_path = PathBuf::from(path);
     let cert_buf = fs::read(file_path).context("reading cert failed")?;
@@ -16,6 +17,7 @@ pub fn load_certificates_from_pem(path: &str) -> Result<Vec<CertificateDer<'stat
     Ok(certs.filter_map(Result::ok).collect())
 }
 
+/// Load a private key (PKCS#1/PKCS#8/SEC1) from a PEM file.
 pub fn load_private_key_from_pem(path: &str) -> Result<PrivateKeyDer<'static>> {
     let file = File::open(path)?;
     let mut reader = BufReader::new(&file);

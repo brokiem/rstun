@@ -1,3 +1,11 @@
+//! rstun: A lightweight QUIC-based TCP/UDP tunneling library.
+//!
+//! This crate provides the core building blocks for a client/server tunneling
+//! system over QUIC (via quinn). It exposes simple configuration types for
+//! defining tunnels and helpers to start client and server components.
+//!
+//! Binaries rstunc (client) and rstund (server) are provided under src/bin.
+
 mod client;
 mod pem_util;
 mod server;
@@ -32,14 +40,21 @@ pub use udp::{UdpMessage, UdpPacket, UdpReceiver, UdpSender};
 extern crate bincode;
 extern crate pretty_env_logger;
 
+/// Human-readable tunnel direction used in CLI/config strings.
 pub const TUNNEL_MODE_IN: &str = "IN";
+/// Human-readable tunnel direction used in CLI/config strings.
 pub const TUNNEL_MODE_OUT: &str = "OUT";
+/// Maximum UDP payload size (bytes) used by this crate.
 pub const UDP_PACKET_SIZE: usize = 1500;
 
 lazy_static! {
     static ref BUFFER_POOL: BytePool::<Vec<u8>> = BytePool::<Vec<u8>>::new();
 }
 
+/// List of supported TLS cipher suites (as CLI-friendly strings).
+///
+/// These map to TLS 1.3 cipher suites in rustls. Strings are accepted by
+/// [`SelectedCipherSuite`]'s FromStr implementation and by the client binary.
 pub const SUPPORTED_CIPHER_SUITE_STRS: &[&str] = &[
     "chacha20-poly1305",
     "aes-256-gcm",
@@ -53,12 +68,15 @@ pub const SUPPORTED_CIPHER_SUITE_STRS: &[&str] = &[
     // "ecdhe-rsa-chacha20-poly1305",
 ];
 
+/// Supported TLS cipher suites used to build rustls/quinn configs.
 pub static SUPPORTED_CIPHER_SUITES: &[rustls::SupportedCipherSuite] = &[
     cipher_suite::TLS13_CHACHA20_POLY1305_SHA256,
     cipher_suite::TLS13_AES_256_GCM_SHA384,
     cipher_suite::TLS13_AES_128_GCM_SHA256,
 ];
 
+/// Wrapper type to parse a user-provided cipher suite string into a
+/// rustls SupportedCipherSuite.
 pub(crate) struct SelectedCipherSuite(rustls::SupportedCipherSuite);
 
 impl std::str::FromStr for SelectedCipherSuite {
@@ -103,40 +121,52 @@ impl Deref for SelectedCipherSuite {
     }
 }
 
+/// Info about an outbound TCP tunnel (client connects to server, server dials upstream).
 #[derive(Debug)]
 pub struct TcpTunnelOutInfo {
     conn: quinn::Connection,
     upstream_addr: SocketAddr,
 }
 
+/// Info about an inbound TCP tunnel (client accepts local TCP and forwards to server).
 #[derive(Debug)]
 pub struct TcpTunnelInInfo {
     conn: quinn::Connection,
     tcp_server: TcpServer,
 }
 
+/// Info about an outbound UDP tunnel (client connects to server, server sends to upstream).
 #[derive(Debug)]
 pub struct UdpTunnelOutInfo {
     conn: quinn::Connection,
     upstream_addr: SocketAddr,
 }
 
+/// Info about an inbound UDP tunnel (client accepts local UDP and forwards to server).
 #[derive(Debug)]
 pub struct UdpTunnelInInfo {
     conn: quinn::Connection,
     udp_server: UdpServer,
 }
 
+/// Negotiated tunnel role and transport type after authentication.
 #[derive(Debug)]
 pub enum TunnelType {
+    /// TCP OUT mode: server will connect to upstream.
     TcpOut(TcpTunnelOutInfo),
+    /// TCP IN mode: server spawns a local TCP listener for the client.
     TcpIn(TcpTunnelInInfo),
+    /// UDP OUT mode: server will send/receive datagrams to/from upstream.
     UdpOut(UdpTunnelOutInfo),
+    /// UDP IN mode: server spawns a local UDP socket for the client.
     UdpIn(UdpTunnelInInfo),
+    /// Channel-based TCP OUT: upstream decided dynamically by the client.
     DynamicUpstreamTcpOut(quinn::Connection),
+    /// Channel-based UDP OUT: upstream decided dynamically by the client.
     DynamicUpstreamUdpOut(quinn::Connection),
 }
 
+/// Direction of a tunnel: Inbound or Outbound relative to the client.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum TunnelMode {
     In,
@@ -152,6 +182,7 @@ impl Display for TunnelMode {
     }
 }
 
+/// Transport type for a tunnel: TCP or UDP.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum UpstreamType {
     Tcp,
@@ -167,9 +198,12 @@ impl Display for UpstreamType {
     }
 }
 
+/// Upstream endpoint definition.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Upstream {
+    /// Destination address on the peer side (None means use server default in OUT mode).
     pub upstream_addr: Option<SocketAddr>,
+    /// Transport type to use when forwarding to the upstream.
     pub upstream_type: UpstreamType,
 }
 
@@ -182,48 +216,77 @@ impl Display for Upstream {
     }
 }
 
+/// A single tunnel specification.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct TunnelConfig {
+    /// Direction of the tunnel, relative to the client.
     pub mode: TunnelMode,
+    /// Local listen address for NetworkBased tunnels (Some) or None for ChannelBased.
     pub local_server_addr: Option<SocketAddr>,
+    /// Upstream config on the server side.
     pub upstream: Upstream,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Tunnel {
+    /// Tunnel driven by local networking (binds on a local address).
     NetworkBased(TunnelConfig),
+    /// Tunnel driven by in-process channels (no local binding).
     ChannelBased(UpstreamType),
 }
 
+/// Client-side runtime configuration.
 #[derive(Debug, Default, Clone)]
 pub struct ClientConfig {
+    /// Path to a PEM certificate for server identity (self-signed use-case).
     pub cert_path: String,
+    /// Preferred TLS cipher suite string (see SUPPORTED_CIPHER_SUITE_STRS).
     pub cipher: String,
+    /// Server address in "host:port".
     pub server_addr: String,
+    /// Shared password for authentication.
     pub password: String,
+    /// Wait time before retrying a failed connection.
     pub wait_before_retry_ms: u64,
+    /// QUIC idle timeout (ms).
     pub quic_timeout_ms: u64,
+    /// TCP idle timeout (ms).
     pub tcp_timeout_ms: u64,
+    /// UDP idle timeout (ms).
     pub udp_timeout_ms: u64,
+    /// Periodic endpoint migration interval (ms); 0 disables.
     pub hop_interval_ms: u64,
+    /// Tunnel definitions to start.
     pub tunnels: Vec<TunnelConfig>,
+    /// DNS-over-TLS servers (domain names). Takes precedence over dns_servers if non-empty.
     pub dot_servers: Vec<String>,
+    /// Plain DNS servers (IP addresses).
     pub dns_servers: Vec<String>,
+    /// Number of async worker threads.
     pub workers: usize,
 }
 
+/// Server-side runtime configuration.
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
+    /// Bind address for the server (host:port).
     pub addr: String,
+    /// Shared password for authentication.
     pub password: String,
+    /// Path to certificate PEM.
     pub cert_path: String,
+    /// Path to private key PEM.
     pub key_path: String,
+    /// QUIC idle timeout (ms).
     pub quic_timeout_ms: u64,
+    /// TCP idle timeout (ms).
     pub tcp_timeout_ms: u64,
+    /// UDP idle timeout (ms).
     pub udp_timeout_ms: u64,
 
     /// for TunnelOut only
     pub default_tcp_upstream: Option<SocketAddr>,
+    /// for TunnelOut only
     pub default_udp_upstream: Option<SocketAddr>,
 
     /// 0.0.0.0:3515
@@ -233,6 +296,13 @@ pub struct ServerConfig {
 }
 
 impl ClientConfig {
+    /// Create a ClientConfig by parsing CLI-style mapping strings.
+    ///
+    /// - tcp_addr_mappings / udp_addr_mappings: comma-separated entries in the form
+    ///   MODE^SRC^DEST where MODE is IN|OUT, SRC is [ip:]port, DEST is [ip:]port or ANY
+    ///   (ANY means use peer default, only valid in OUT mode).
+    /// - dot / dns: comma-separated servers.
+    /// - workers: set to 0 to use all logical CPUs.
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         server_addr: &str,
@@ -363,6 +433,7 @@ fn parse_addr_mappings(
     Ok(())
 }
 
+/// Create a socket address with an unspecified IP and port 0, suitable for binding.
 pub fn socket_addr_with_unspecified_ip_port(ipv6: bool) -> SocketAddr {
     if ipv6 {
         SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0)
