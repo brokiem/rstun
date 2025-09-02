@@ -18,12 +18,13 @@ jobs:
                                                   && mv target/release/rstund ./rstun-linux-x86_64/
                                                   && tar zcf rstun-linux-x86_64.tar.gz ./rstun-linux-x86_64/*
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'release'
         with:
           files: |
             rstun-linux-x86_64.tar.gz
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   windows-x86_64:
     name: Windows x86_64
@@ -43,10 +44,11 @@ jobs:
                                                   && mv target/release/rstund.exe ./rstun-windows-x86_64/
                                                   && 7z a rstun-windows-x86_64.zip ./rstun-windows-x86_64/*
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'release'
         with:
           files: |
             rstun-windows-x86_64.zip
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
